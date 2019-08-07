@@ -29,7 +29,6 @@ from certbot.plugins.util import path_surgery
 from certbot.plugins.enhancements import AutoHSTSEnhancement
 
 from certbot_apache import apache_util
-from certbot_apache import augeasparser
 from certbot_apache import constants
 from certbot_apache import display_ops
 from certbot_apache import http_01
@@ -820,6 +819,28 @@ class ApacheConfigurator(common.Installer):
 
         return (servername, serveraliases)
 
+    def _populate_vhost_names_v2(self, vhost):
+        """Helper function that populates the VirtualHost names.
+
+        :param host: In progress vhost whose names will be added
+        :type host: :class:`~certbot_apache.obj.VirtualHost`
+
+        """
+
+        servername_match = vhost.node.find_directives("ServerName",
+                                                      exclude=False)
+        serveralias_match = vhost.node.find_directives("ServerAlias",
+                                                       exclude=False)
+
+        if servername_match:
+            servername = servername_match[-1].parameters[-1]
+
+        if not vhost.modmacro:
+            for alias in serveralias_match:
+                for serveralias in alias.parameters:
+                    vhost.aliases.add(serveralias)
+            vhost.name = servername
+
     def _add_servernames(self, host):
         """Helper function for get_virtual_hosts().
 
@@ -899,8 +920,7 @@ class ApacheConfigurator(common.Installer):
         if sslengine:
             for directive in sslengine:
                 # TODO: apache-parser-v2
-                # Create helper function to make this case insensitive.
-                # This search should be done to root node. (check following lines)
+                # This search should be made wiser. (using other identificators)
                 if directive.has_parameter("on", 0):
                     is_ssl = True
 
@@ -921,12 +941,11 @@ class ApacheConfigurator(common.Installer):
 
         vhost_enabled = self.parser.parsed_in_original(filename)
 
-        vhost = obj.VirtualHost(filename, path, addrs, is_ssl,
-                                vhost_enabled, modmacro=macro)
+        vhost = obj.VirtualHost(filename, node.get_metadata("augeas_path"),
+                                addrs, is_ssl, vhost_enabled, modmacro=macro,
+                                node=node)
 
-        # TODO: apache-parser-v2
-        # Uncomment  when parser_refactor_1 has been merged
-        # self._add_servernames(vhost)
+        self._populate_vhost_names_v2(vhost)
         return vhost
 
     def get_virtual_hosts(self):

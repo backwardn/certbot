@@ -1,12 +1,15 @@
 """ Tests for ParserNode interface """
 from certbot_apache import interfaces
 
+from acme.magic_typing import Dict, Tuple  # pylint: disable=unused-import, no-name-in-module
+
 
 class AugeasCommentNode(interfaces.CommentNode):
     """ Augeas implementation of CommentNode interface """
     ancestor = None
     comment = ""
     dirty = False
+    _metadata = dict()  # type: Dict[str, object]
 
     def __init__(self, comment, ancestor=None):
         self.comment = comment
@@ -15,6 +18,18 @@ class AugeasCommentNode(interfaces.CommentNode):
     def save(self, msg):  # pragma: no cover
         pass
 
+    # Apache specific functionality
+
+    def get_metadata(self, key):
+        """ Returns a metadata object
+
+        :param str key: Metadata object name to return
+        :returns: Requested metadata object
+        """
+        try:
+            return self._metadata[key]
+        except KeyError:
+            return None
 
 class AugeasDirectiveNode(interfaces.DirectiveNode):
     """ Augeas implementation of DirectiveNode interface """
@@ -23,6 +38,7 @@ class AugeasDirectiveNode(interfaces.DirectiveNode):
     dirty = False
     enabled = True
     name = ""
+    _metadata = dict()  # type: Dict[str, object]
 
     def __init__(self, name, parameters=tuple(), ancestor=None):
         self.name = name
@@ -49,6 +65,17 @@ class AugeasDirectiveNode(interfaces.DirectiveNode):
         #    self.parser.aug.get("/augeas/files%s/path" % apache_util.get_file_path(path)))
         return "CERTBOT_PASS_ASSERT"
 
+    def get_metadata(self, key):
+        """ Returns a metadata object
+
+        :param str key: Metadata object name to return
+        :returns: Requested metadata object
+        """
+        try:
+            return self._metadata[key]
+        except KeyError:
+            return None
+
     def has_parameter(self, parameter, position=None):
         """Checks if this ParserNode object has a supplied parameter. This check
         is case insensitive.
@@ -60,7 +87,7 @@ class AugeasDirectiveNode(interfaces.DirectiveNode):
         :rtype: bool
         """
         if position:
-            return paramter.lower() == self.parameters[position].lower()
+            return parameter.lower() == self.parameters[position].lower()
 
         for param in self.parameters:
             if param.lower() == parameter.lower():
@@ -76,6 +103,7 @@ class AugeasBlockNode(interfaces.BlockNode):
     dirty = False
     enabled = True
     name = ""
+    _metadata = dict()  # type: Dict[str, object]
 
     def __init__(self, name, parameters=tuple(), ancestor=None):
         self.name = name
@@ -117,3 +145,48 @@ class AugeasBlockNode(interfaces.BlockNode):
 
     def unsaved_files(self):  # pragma: no cover
         return ["CERTBOT_PASS_ASSERT"]
+
+    # Apache specific functionality
+
+    def get_filename(self):
+        """Returns the filename where this directive exists on disk
+
+        :returns: File path to this node.
+        :rtype: str
+        """
+
+        # Following is the real implementation when everything else is in place:
+        # return apache_util.get_file_path(
+        #    self.parser.aug.get("/augeas/files%s/path" %
+        #    apache_util.get_file_path(self.get_metadata("augeas_path")))
+        return "CERTBOT_PASS_ASSERT"
+
+    def get_metadata(self, key):
+        """ Returns a metadata object
+
+        :param str key: Metadata object name to return
+        :returns: Requested metadata object
+        """
+        try:
+            return self._metadata[key]
+        except KeyError:
+            return None
+
+    def has_parameter(self, parameter, position=None):
+        """Checks if this ParserNode object has a supplied parameter. This check
+        is case insensitive.
+
+        :param str parameter: Parameter value to look for
+        :param position: Optional explicit position of parameter to look for
+
+        :returns: True if parameter is found
+        :rtype: bool
+        """
+        if position:
+            return parameter.lower() == self.parameters[position].lower()
+
+        for param in self.parameters:
+            if param.lower() == parameter.lower():
+                return True
+
+        return False
