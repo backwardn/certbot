@@ -29,6 +29,7 @@ from certbot.plugins.util import path_surgery
 from certbot.plugins.enhancements import AutoHSTSEnhancement
 
 from certbot_apache import apache_util
+from certbot_apache import augeasparser
 from certbot_apache import constants
 from certbot_apache import display_ops
 from certbot_apache import http_01
@@ -868,6 +869,54 @@ class ApacheConfigurator(common.Installer):
         vhost = obj.VirtualHost(filename, path, addrs, is_ssl,
                                 vhost_enabled, modmacro=macro)
         self._add_servernames(vhost)
+        return vhost
+
+    def _create_vhost_v2(self, node):
+        """Used by get_virtual_hosts to create vhost objects using ParserNode
+        interfaces.
+
+        :param interfaces.BlockNode node: The BlockNode object of VirtualHost block
+
+        :returns: newly created vhost
+        :rtype: :class:`~certbot_apache.obj.VirtualHost`
+        """
+        addrs = set()
+        for param in node.parameters:
+            addrs.add(obj.Addr.fromstring(param))
+
+        is_ssl = False
+        sslengine = node.find_directives("SSLEngine")
+        if sslengine:
+            for directive in sslengine:
+                # TODO: apache-parser-v2
+                # Create helper function to make this case insensitive.
+                # This search should be done to root node. (check following lines)
+                if directive.has_parameter("on", 0):
+                    is_ssl = True
+
+        # "SSLEngine on" might be set outside of <VirtualHost>
+        # Treat vhosts with port 443 as ssl vhosts
+        for addr in addrs:
+            if addr.get_port() == "443":
+                is_ssl = True
+
+        filename = node.get_filename()
+
+        if filename is None:
+            return None
+
+        macro = False
+        if node.find_directives("Macro"):
+            macro = True
+
+        vhost_enabled = self.parser.parsed_in_original(filename)
+
+        vhost = obj.VirtualHost(filename, path, addrs, is_ssl,
+                                vhost_enabled, modmacro=macro)
+
+        # TODO: apache-parser-v2
+        # Uncomment  when parser_refactor_1 has been merged
+        # self._add_servernames(vhost)
         return vhost
 
     def get_virtual_hosts(self):
