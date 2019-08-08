@@ -90,21 +90,8 @@ class ParserNodeTest(util.ApacheTest):
 
         self.config = util.get_apache_configurator(
             self.config_path, self.vhost_path, self.config_dir, self.work_dir)
-        self.config = self.mock_deploy_cert(self.config)
         self.vh_truth = util.get_vh_truth(
             self.temp_dir, "debian_apache_2_4/multiple_vhosts")
-
-    def mock_deploy_cert(self, config):
-        """A test for a mock deploy cert"""
-        config.real_deploy_cert = self.config.deploy_cert
-
-        def mocked_deploy_cert(*args, **kwargs):
-            """a helper to mock a deployed cert"""
-            g_mod = "certbot_apache.configurator.ApacheConfigurator.enable_mod"
-            with mock.patch(g_mod):
-                config.real_deploy_cert(*args, **kwargs)
-        self.config.deploy_cert = mocked_deploy_cert
-        return self.config
 
     def test_dummy(self):
         dummyblock = DummyBlockNode()
@@ -191,6 +178,54 @@ class ParserNodeTest(util.ApacheTest):
         vhost = self.config._create_vhost_v2(nodes["VirtualHost"])  # pylint: disable=protected-access
         self.assertTrue(vhost.ssl)
         self.assertFalse(vhost.modmacro)
+
+    def test_create_vhost_v2_no_filename(self):
+        nodes = self._create_mock_vhost_nodes("example.com",
+                                              ["a1.example.com", "a2.example.com"],
+                                              ["*:80"])
+        nodes["VirtualHost"].find_directives = self.mock_find_directives
+        self.mock_nodes = {"ServerName": [nodes["ServerName"]],
+                           "ServerAlias": [nodes["ServerAlias"]],
+                           "SSLEngine": [nodes["SSLEngine"]]}
+        filename = "certbot_apache.augeasparser.AugeasBlockNode.get_filename"
+        with mock.patch(filename) as mock_filename:
+            mock_filename.return_value = None
+            vhost = self.config._create_vhost_v2(nodes["VirtualHost"])  # pylint: disable=protected-access
+            self.assertEqual(vhost, None)
+
+    def test_comment_node_creation(self):
+        comment = augeasparser.AugeasCommentNode("This is a comment")
+        comment._metadata["augeas_path"] = "/whatever"  # pylint: disable=protected-access
+        self.assertEqual(comment.get_metadata("augeas_path"), "/whatever")
+        self.assertEqual(comment.get_metadata("something_else"), None)
+        self.assertEqual(comment.comment, "This is a comment")
+
+    def test_directive_node_creation(self):
+        directive = augeasparser.AugeasDirectiveNode("DIRNAME", ("p1", "p2",))
+        directive._metadata["augeas_path"] = "/whatever"  # pylint: disable=protected-access
+        self.assertEqual(directive.get_metadata("augeas_path"), "/whatever")
+        self.assertEqual(directive.get_metadata("something_else"), None)
+        self.assertEqual(directive.name, "DIRNAME")
+        self.assertEqual(directive.parameters, ("p1", "p2",))
+        self.assertTrue(directive.has_parameter("P1", 0))
+        self.assertFalse(directive.has_parameter("P2", 0))
+        self.assertFalse(directive.has_parameter("P3"))
+        self.assertTrue(directive.has_parameter("P2"))
+        self.assertEqual(directive.get_filename(), "CERTBOT_PASS_ASSERT")
+
+    def test_block_node_creation(self):
+        block = augeasparser.AugeasBlockNode("BLOCKNAME", ("first", "SECOND",))
+        block._metadata["augeas_path"] = "/whatever"  # pylint: disable=protected-access
+        self.assertEqual(block.get_metadata("augeas_path"), "/whatever")
+        self.assertEqual(block.get_metadata("something_else"), None)
+        self.assertEqual(block.name, "BLOCKNAME")
+        self.assertEqual(block.parameters, ("first", "SECOND",))
+        self.assertFalse(block.has_parameter("second", 0))
+        self.assertFalse(block.has_parameter("SECOND", 0))
+        self.assertFalse(block.has_parameter("third"))
+        self.assertTrue(block.has_parameter("FIRST"))
+        self.assertEqual(block.get_filename(), "CERTBOT_PASS_ASSERT")
+
 
 
 if __name__ == "__main__":

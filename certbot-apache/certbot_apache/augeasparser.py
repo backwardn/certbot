@@ -86,7 +86,7 @@ class AugeasDirectiveNode(interfaces.DirectiveNode):
         :returns: True if parameter is found
         :rtype: bool
         """
-        if position:
+        if position != None:
             return parameter.lower() == self.parameters[position].lower()
 
         for param in self.parameters:
@@ -182,7 +182,7 @@ class AugeasBlockNode(interfaces.BlockNode):
         :returns: True if parameter is found
         :rtype: bool
         """
-        if position:
+        if position != None:
             return parameter.lower() == self.parameters[position].lower()
 
         for param in self.parameters:
